@@ -1,75 +1,101 @@
-from flask import Flask, jsonify, request
+from flask import Flask, request, jsonify
+import requests
 
 app = Flask(__name__)
 
-# Sample data (can be replaced with a database)
-books = {
-    1: {'id': 1, 'name': 'John Doe', 'email': 'johndoe@example.com'},
-    2: {'id': 2, 'name': 'Jane Smith', 'email': 'janesmith@example.com'}
-}
-
-# Get all books
-@app.route('/newBasket64', methods=['GET'])
-def get_books():
-    return books
+# Pantry API base URL
+PANTRY_API_BASE_URL = "https://getpantry.cloud/apiv1/pantry/b6057d6b-762a-4a1e-8724-2eab6a74a6e4/"
 
 
-# Get a specific book by ID
-@app.route('/newBasket64/<int:book_id>', methods=['GET'])
-def get_book(book_id):
-    for book in books:
-        if book['id']==book_id:
-            return book
+@app.route('/')
+def index():
+    return "hello welcome"
 
-    return {'error':'Book not found'}
+@app.route('/add-item', methods=['POST'])
+def add_item():
+    data = request.get_json()
+    pantry_id = data.get('pantry_id')
+    basket_key = data.get('basket_key')
+    value = data.get('value')
 
-# Create a book
-@app.route('/books', methods=['POST'])
-def create_book():
-    new_book={'id':len(books)+1, 'title':request.json['title'], 'author':request.json['author']}
-    books.append(new_book)
-    return new_book
+    # Prepare the URL for storing key-value pair in the Pantry
+    url = f'{PANTRY_API_BASE_URL}basket/{pantry_id}/{basket_key}'
 
+    # Make a POST request to store the key-value pair
+    response = requests.post(url, json={'value': value})
 
-# Update a book
-@app.route('/books/<int:book_id>', methods=['PUT'])
-def update_book(book_id):
-    for book in books:
-        if book['id']==book_id:
-            book['title']=request.json['title']
-            book['author']=request.json['author']
-            return book 
-    return {'error':'Book not found'}
-
-# Delete a book
-@app.route('/books/<int:book_id>', methods=['DELETE'])
-def delete_book(book_id):
-    for book in books:
-        if book['id']==book_id:
-            books.remove(book)
-            return {"data":"Book Deleted Successfully"}
-
-    return {'error':'Book not found'}
-
-
-@app.route('/uploadbook', methods=['POST'])
-def uploadbook():
-    import os
-    uploaded_file = request.files['file']
-    if uploaded_file and allowed_file(uploaded_file.filename):
-        destination = os.path.join('uploads/',uploaded_file.filename)
-        uploaded_file.save(destination)
-        return {'data':'File Uploaded Successfully'}
-
+    if response.status_code == 200:
+        return jsonify({'message': 'Item added successfully'}), 201
     else:
-        return {'error':'File upload failed, or invalid file type'}
+        return jsonify({'message': 'Failed to add item'}), 500
 
+@app.route('/get-item', methods=['GET'])
+def get_item():
+    pantry_id = request.args.get('pantry_id')
+    basket_key = request.args.get('basket_key')
 
-def allowed_file(filename):
-    ALLOWED_EXTS = ['png', 'jpg', 'jpeg']
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTS
+    # Prepare the URL for retrieving the value from the Pantry
+    url = f'{PANTRY_API_BASE_URL}basket/{basket_key}'
 
-# Run the flask App
-if __name__ == '__main__':
+    # Make a GET request to retrieve the value
+    response = requests.get(url)
+
+    if response.status_code == 200:
+        item_data = response.json()
+        value = item_data.get('value')
+        return jsonify({'value': value}), 200
+    else:
+        return jsonify({'message': 'Item not found'}), 404
+
+@app.route('/list-baskets', methods=['GET'])
+def list_baskets():
+    pantry_id = request.args.get('pantry_id')
+
+    # Prepare the URL for listing baskets in the Pantry
+    url = f'{PANTRY_API_BASE_URL}basket/{pantry_id}'
+
+    # Make a GET request to list baskets
+    response = requests.get(url)
+
+    if response.status_code == 200:
+        baskets = response.json()
+        return jsonify({'baskets': baskets}), 200
+    else:
+        return jsonify({'message': 'Pantry not found'}), 404
+
+@app.route('/update-item', methods=['PUT'])
+def update_item():
+    data = request.get_json()
+    pantry_id = data.get('pantry_id')
+    basket_key = data.get('basket_key')
+    new_value = data.get('new_value')
+
+    # Prepare the URL for updating the value in the Pantry
+    url = f'{PANTRY_API_BASE_URL}basket/{pantry_id}/{basket_key}'
+
+    # Make a PUT request to update the value
+    response = requests.put(url, json={'value': new_value})
+
+    if response.status_code == 200:
+        return jsonify({'message': 'Item updated successfully'}), 200
+    else:
+        return jsonify({'message': 'Item not found'}), 404
+
+@app.route('/delete-item', methods=['DELETE'])
+def delete_item():
+    pantry_id = request.args.get('pantry_id')
+    basket_key = request.args.get('basket_key')
+
+    # Prepare the URL for deleting the item from the Pantry
+    url = f'{PANTRY_API_BASE_URL}basket/{pantry_id}/{basket_key}'
+
+    # Make a DELETE request to delete the item
+    response = requests.delete(url)
+
+    if response.status_code == 200:
+        return '', 204
+    else:
+        return jsonify({'message': 'Item not found'}), 404
+
+if _name_ == '__main__':
     app.run(debug=True)
-    
